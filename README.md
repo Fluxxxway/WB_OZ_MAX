@@ -1,2 +1,2 @@
 # WB_OZ_MAX
-Test description
+MAX BOT made for Hackaton. Our track is effective business. 
