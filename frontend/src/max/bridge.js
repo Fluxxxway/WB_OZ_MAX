@@ -1,40 +1,83 @@
-// Это временная обёртка.
-// Позже нужно заменить методы на реальные методы из документации MAX.
+// Обёртка над MAX Web App Bridge
+// Документация: https://dev.max.ru/docs/webapps/bridge
 
-export async function getMaxUser() {
+export function getMaxUser() {
   try {
-    // Здесь могут быть разные варианты названий методов.
-    // Нужно уточнить в документации или у команды.
-    if (window.MAX && window.MAX.bridge && window.MAX.bridge.getUser) {
-      return await window.MAX.bridge.getUser();
+    // Проверка: запущено ли приложение внутри MAX
+    if (typeof window === "undefined" || !window.WebApp) {
+      return Promise.resolve({
+        id: "local-user",
+        name: "Тестовый пользователь (локально)",
+        platform: "web",
+      });
     }
 
-    if (window.max && window.max.bridge && window.max.bridge.getUser) {
-      return await window.max.bridge.getUser();
+    const initData = window.WebApp.initDataUnsafe;
+
+    if (!initData || !initData.user) {
+      return Promise.resolve({
+        id: "local-user",
+        name: "Тестовый пользователь (нет данных)",
+        platform: window.WebApp.platform || "unknown",
+      });
     }
+
+    return Promise.resolve({
+      id: initData.user.id,
+      name: `${initData.user.first_name} ${initData.user.last_name || ""}`.trim(),
+      username: initData.user.username,
+      photoUrl: initData.user.photo_url,
+      platform: window.WebApp.platform || "unknown",
+    });
   } catch (error) {
-    console.warn("MAX Bridge getUser недоступен:", error);
+    console.warn("Ошибка получения данных пользователя MAX:", error);
+    return Promise.resolve({
+      id: "local-user",
+      name: "Тестовый пользователь (ошибка)",
+      platform: "unknown",
+    });
   }
-
-  // Заглушка для браузера
-  return {
-    id: "local-user",
-    name: "Тестовый пользователь",
-  };
 }
 
-export async function takePhotoWithMax() {
-  try {
-    if (window.MAX && window.MAX.bridge && window.MAX.bridge.openCamera) {
-      return await window.MAX.bridge.openCamera();
-    }
-
-    if (window.max && window.max.bridge && window.max.bridge.openCamera) {
-      return await window.max.bridge.openCamera();
-    }
-  } catch (error) {
-    console.warn("MAX Bridge камера недоступна:", error);
+export function getPlatform() {
+  if (typeof window !== "undefined" && window.WebApp) {
+    return window.WebApp.platform || "unknown";
   }
+  return "web";
+}
 
-  throw new Error("Камера через MAX пока недоступна");
+// Предотвращение случайного закрытия формы
+export function enableClosingConfirmation() {
+  if (typeof window !== "undefined" && window.WebApp) {
+    window.WebApp.enableClosingConfirmation();
+  }
+}
+
+export function disableClosingConfirmation() {
+  if (typeof window !== "undefined" && window.WebApp) {
+    window.WebApp.disableClosingConfirmation();
+  }
+}
+
+// Скачивание файла (требует HTTPS!)
+export function downloadFile(url, filename) {
+  if (typeof window !== "undefined" && window.WebApp && window.WebApp.downloadFile) {
+    return window.WebApp.downloadFile(url, filename);
+  }
+  
+  // Fallback для браузера
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  return Promise.resolve();
+}
+
+// Шеринг контента внутри MAX (требует mid от бота)
+export function shareMaxContent(mid, chatType = "DIALOG") {
+  if (typeof window !== "undefined" && window.WebApp && window.WebApp.shareMaxContent) {
+    return window.WebApp.shareMaxContent({ mid, chatType });
+  }
+  console.warn("shareMaxContent недоступен вне MAX");
+  return Promise.resolve();
 }

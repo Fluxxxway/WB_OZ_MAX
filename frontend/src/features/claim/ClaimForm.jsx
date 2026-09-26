@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { getMaxUser } from "../../max/bridge";
+import {
+  getMaxUser,
+  enableClosingConfirmation,
+  disableClosingConfirmation,
+} from "../../max/bridge";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
