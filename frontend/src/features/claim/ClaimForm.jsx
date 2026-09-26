@@ -1,39 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  getMaxUser,
-  enableClosingConfirmation,
-  disableClosingConfirmation,
-} from "../../max/bridge";
+import { useMemo, useState } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
-
-// ВСЕ поля формы живут здесь. Изменился контракт — правишь здесь.
 const initialForm = {
-  platform: "Wildberries", // или "Ozon"
+  platform: "Wildberries",
   penalty_type: "",
   amount: "",
   violation_date: "",
+  description: "",
   act_number: "",
   warehouse_name: "",
   sku_id: "",
 };
 
-// ЕДИНСТВЕННОЕ место, где собирается объект для отправки.
+export const PENALTY_OPTIONS = [
+  { value: "penalty_size", label: "Удержание за несоответствие габаритов" },
+  { value: "late_shipment", label: "Нарушение сроков поставки" },
+  { value: "return_issue", label: "Спорный возврат" },
+  { value: "other", label: "Другое удержание" },
+];
+
 function buildPayload(form, userId, photoUrls) {
   const isWB = form.platform === "Wildberries";
 
   return {
     platform: form.platform,
     penalty_type: form.penalty_type,
-
-    // 1. Обязательные поля (ядро)
     user_id: userId,
     amount: Number(form.amount),
     violation_date: form.violation_date,
     photos: photoUrls,
-
-    // 2. Опциональные поля (зависят от маркетплейса)
     act_number: form.act_number.trim() !== "" ? form.act_number : null,
     warehouse_name:
       isWB && form.warehouse_name.trim() !== "" ? form.warehouse_name : null,
@@ -41,7 +35,6 @@ function buildPayload(form, userId, photoUrls) {
   };
 }
 
-// Claim-Score: обязательное ядро + своё обязательное поле для каждой платформы
 function calcClaimScore(form, photoUrls) {
   const isWB = form.platform === "Wildberries";
 
@@ -57,91 +50,54 @@ function calcClaimScore(form, photoUrls) {
   return Math.round((done / checks.length) * 100);
 }
 
-export default function ClaimForm() {
-  const [form, setForm] = useState(initialForm);
-  const [photos, setPhotos] = useState([]);        // файлы (для превью)
-  const [photoUrls, setPhotoUrls] = useState([]);  // строки, которые поедут в JSON
-  const [user, setUser] = useState(null);
-  const [status, setStatus] = useState("idle");
+export default function ClaimForm({ initial = null, user, onPreview }) {
+  const [form, setForm] = useState(initial ? initial.form : initialForm);
+  const [photos, setPhotos] = useState(initial ? initial.photos : []);
+  const [photoUrls, setPhotoUrls] = useState(initial ? initial.photoUrls : []);
+  const [showHint, setShowHint] = useState(false);
 
-  useEffect(() => {
-  getMaxUser()
-    .then(setUser)
-    .catch(() => {
-      setUser({
-        id: "local-user",
-        name: "Тестовый пользователь",
-      });
-    });
-}, []);
-
-  const score = useMemo(
-    () => calcClaimScore(form, photoUrls),
-    [form, photoUrls]
-  );
-
+  const score = useMemo(() => calcClaimScore(form, photoUrls), [form, photoUrls]);
   const isWB = form.platform === "Wildberries";
+  const today = new Date().toISOString().slice(0, 10);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  const { name, value } = e.target;
+
+  if (name === "amount") {
+    // оставляем только цифры, всё остальное просто не появляется
+    const digits = value.replace(/\D/g, "");
+    setForm((prev) => ({ ...prev, amount: digits }));
+    return;
+  }
+
+  setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFiles = (e) => {
     const files = Array.from(e.target.files || []);
     setPhotos(files);
-
-    // ЗАГЛУШКА. Потом здесь будет либо загрузка на бэкенд (FormData),
-    // либо base64, либо URL из MAX — как договоритесь.
+    // ЗАГЛУШКА: позже реальные URL (вопрос №1 бэкендеру)
     setPhotoUrls(files.map((f, i) => `mock://photo-${i + 1}-${f.name}`));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (score < 100) {
-      setStatus("incomplete");
+      setShowHint(true);
       return;
     }
-
-    setStatus("loading");
-
-    const payload = buildPayload(form, user ? user.id : null, photoUrls);
-
-    try {
-      if (USE_MOCK) {
-        console.log("MOCK SEND:", payload);
-        await new Promise((r) => setTimeout(r, 800));
-        setStatus("success");
-        return;
-      }
-
-      // Вот так отправляется JSON (а не FormData):
-      const response = await fetch(`${API_URL}/api/v1/claims/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) throw new Error(`Ошибка сервера: ${response.status}`);
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "claim.pdf";
-      link.click();
-      URL.revokeObjectURL(url);
-
-      setStatus("success");
-    } catch (error) {
-      console.error(error);
-      setStatus("error");
-    }
+    onPreview({
+      form,
+      photos,
+      photoUrls,
+      userName: user ? user.name : "Продавец",
+      payload: buildPayload(form, user ? user.id : null, photoUrls),
+    });
   };
 
   return (
     <div style={{ maxWidth: 500, margin: "0 auto", padding: 16 }}>
       <h1>Антикризисный помощник</h1>
-      <h2>Создание претензии</h2>
+      <h2>Данные для претензии</h2>
 
       <div style={{ marginBottom: 16 }}>
         <div>Заполненность заявки: {score}%</div>
@@ -173,19 +129,21 @@ export default function ClaimForm() {
             style={{ width: "100%" }}
           >
             <option value="">Выбери тип</option>
-            <option value="penalty_size">Штраф за габариты</option>
-            <option value="late_shipment">Нарушение сроков поставки</option>
-            <option value="return_issue">Спорный возврат</option>
-            <option value="other">Другое</option>
+            {PENALTY_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </label>
       </div>
 
       <div style={{ marginBottom: 12 }}>
         <label>
-          Сумма штрафа, руб.
+          Сумма удержания, руб.
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             name="amount"
             value={form.amount}
             onChange={handleChange}
@@ -193,22 +151,27 @@ export default function ClaimForm() {
             style={{ width: "100%" }}
           />
         </label>
+        {form.amount !== "" && Number(form.amount) <= 0 && (
+          <p style={{ color: "orange", fontSize: 12, margin: "4px 0 0" }}>
+            Сумма должна быть больше нуля
+          </p>
+        )}
       </div>
 
       <div style={{ marginBottom: 12 }}>
         <label>
-          Дата нарушения
+          Дата начисления
           <input
             type="date"
             name="violation_date"
             value={form.violation_date}
             onChange={handleChange}
+            max={today}
             style={{ width: "100%" }}
           />
         </label>
       </div>
 
-      {/* Обязательное только для WB */}
       {isWB && (
         <div style={{ marginBottom: 12 }}>
           <label>
@@ -225,7 +188,6 @@ export default function ClaimForm() {
         </div>
       )}
 
-      {/* Обязательно только для Ozon */}
       {!isWB && (
         <div style={{ marginBottom: 12 }}>
           <label>
@@ -242,7 +204,6 @@ export default function ClaimForm() {
         </div>
       )}
 
-      {/* Опционально всегда */}
       <div style={{ marginBottom: 12 }}>
         <label>
           Номер акта (если есть)
@@ -259,6 +220,23 @@ export default function ClaimForm() {
 
       <div style={{ marginBottom: 12 }}>
         <label>
+          Описание ситуации
+          <textarea
+            name="description"
+            value={form.description}
+            onChange={handleChange}
+            placeholder="Опиши ситуацию минимум 20 символами"
+            rows={4}
+            style={{ width: "100%" }}
+          />
+        </label>
+        <div style={{ fontSize: 12, color: "#888" }}>
+          {form.description.trim().length} / минимум 20 символов
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <label>
           Фото-доказательства
           <input
             type="file"
@@ -269,28 +247,30 @@ export default function ClaimForm() {
           />
         </label>
         {photos.length > 0 && (
-          <div style={{ marginTop: 8 }}>Загружено фото: {photos.length}</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            {photos.map((file, i) => (
+              <img
+                key={i}
+                src={URL.createObjectURL(file)}
+                alt={file.name}
+                style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }}
+              />
+            ))}
+          </div>
         )}
       </div>
 
       <button
         onClick={handleSubmit}
-        disabled={status === "loading"}
-        style={{ padding: "10px 16px", width: "100%" }}
+        style={{ padding: "12px 16px", width: "100%", borderRadius: 8, border: "none", background: "#2e7d32", color: "#fff" }}
       >
-        {status === "loading" ? "Генерируем..." : "Сгенерировать претензию"}
+        Предпросмотр апелляции
       </button>
 
-      {status === "incomplete" && (
+      {showHint && score < 100 && (
         <p style={{ color: "orange" }}>
           Заполни обязательные поля и добавь хотя бы одно фото.
         </p>
-      )}
-      {status === "success" && (
-        <p style={{ color: "green" }}>Заявка отправлена (мок — смотри консоль).</p>
-      )}
-      {status === "error" && (
-        <p style={{ color: "red" }}>Ошибка отправки. Смотри консоль.</p>
       )}
     </div>
   );

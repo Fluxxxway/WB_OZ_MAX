@@ -1,9 +1,9 @@
-import ClaimForm from "./features/claim/ClaimForm";
+import ClaimFlow from "./features/claim/ClaimFlow";
 
 function App() {
   return (
     <div>
-      <ClaimForm />
+      <ClaimFlow />
     </div>
   );
 }
