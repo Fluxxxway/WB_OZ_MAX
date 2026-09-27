@@ -104,9 +104,32 @@ export default function DocumentView({ claim, status, onEdit, onGenerate }) {
       </div>
 
       {status === "error" && (
-        <p style={{ color: "#c62828", marginTop: 8 }}>
-          Не удалось создать файл. Проверьте соединение и попробуйте ещё раз.
-        </p>
+        <div
+          style={{
+            marginTop: 12,
+            padding: 12,
+            borderRadius: 8,
+            background: "#ffebee",
+            color: "#b71c1c",
+            fontSize: 14,
+          }}
+        >
+          Не удалось создать файл. Проверь соединение и попробуй ещё раз.
+          <button
+            onClick={onGenerate}
+            style={{
+              display: "block",
+              marginTop: 8,
+              padding: "8px 16px",
+              borderRadius: 8,
+              border: "1px solid #b71c1c",
+              background: "#fff",
+              color: "#b71c1c",
+            }}
+          >
+            Повторить
+          </button>
+        </div>
       )}
     </div>
   );
