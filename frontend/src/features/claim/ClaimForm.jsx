@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { loadDraft, saveDraft } from "./draft";
 import { PLATFORM } from "../../config/platform";
 
 const initialForm = {
@@ -60,14 +61,56 @@ function getDeadlineText(violationDate) {
 }
 
 export default function ClaimForm({ initial = null, user, onPreview }) {
-  const [form, setForm] = useState(initial ? initial.form : initialForm);
+  const draft = useMemo(() => (initial ? null : loadDraft()), []);
+  const [form, setForm] = useState(() => {
+    if (initial && initial.form) return initial.form;  // ← приоритет: данные из редактирования
+    if (draft && draft.form) return { ...initialForm, ...draft.form };
+    return initialForm;
+  });
+  const [restoredVisible, setRestoredVisible] = useState(Boolean(draft) && !initial);
   const [photos, setPhotos] = useState(initial ? initial.photos : []);
   const [photoUrls, setPhotoUrls] = useState(initial ? initial.photoUrls : []);
   const [showHint, setShowHint] = useState(false);
   const [showPhotoHelp, setShowPhotoHelp] = useState(false);
+  
+  useEffect(() => {
+    saveDraft(form);
+  }, [form]);
+
+  const missing = [];
+  if (!form.penalty_type) missing.push("тип штрафа");
+  if (!(Number(form.amount) > 0)) missing.push("сумма");
+  if (!form.violation_date) missing.push("дата начисления");
+  if (!form.warehouse_name.trim()) missing.push("склад отгрузки");
+  if (photoUrls.length === 0) missing.push("фото");
 
   const score = useMemo(() => calcClaimScore(form, photoUrls), [form, photoUrls]);
   const today = new Date().toISOString().slice(0, 10);
+
+  {restoredVisible && (
+    <div
+      style={{
+        marginBottom: 12,
+        padding: 10,
+        borderRadius: 8,
+        background: "#e3f2fd",
+        color: "#0d47a1",
+        fontSize: 13,
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 8,
+      }}
+    >
+      <span>Черновик восстановлен. Фото нужно приложить заново.</span>
+      <button
+        type="button"
+        onClick={() => setRestoredVisible(false)}
+        style={{ border: "none", background: "none", color: "#0d47a1", padding: 0, minHeight: 0 }}
+      >
+        ×
+      </button>
+    </div>
+  )}
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -123,9 +166,7 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
         }}
       >
         Маркетплейс: <b>{PLATFORM.label}</b>{" "}
-        <span style={{ color: "#999", fontSize: 12 }}>
-          (Ozon — в следующей версии)
-        </span>
+        
       </div>
 
       <div style={{ marginBottom: 12 }}>
@@ -295,10 +336,8 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
         Предпросмотр апелляции
       </button>
 
-      {showHint && score < 100 && (
-        <p style={{ color: "orange" }}>
-          Заполни обязательные поля и добавь хотя бы одно фото.
-        </p>
+      {showHint && missing.length > 0 && (
+        <p style={{ color: "orange" }}>Чего не хватает: {missing.join(", ")}.</p>
       )}
 
       {showPhotoHelp && (

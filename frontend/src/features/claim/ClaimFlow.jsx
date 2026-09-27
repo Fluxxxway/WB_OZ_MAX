@@ -1,3 +1,4 @@
+import { clearDraft } from "./draft";
 import { useEffect, useState } from "react";
 import ClaimForm from "./ClaimForm";
 import DocumentView from "./DocumentView";
@@ -38,6 +39,7 @@ export default function ClaimFlow() {
     try {
       const result = await generateClaim(claim.payload);
       setPdf(result);
+      clearDraft();
       setGenStatus("idle");
       setStep("final");
       window.scrollTo(0, 0);
