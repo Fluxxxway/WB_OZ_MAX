@@ -27,3 +27,18 @@ export async function generateClaim(payload) {
 
   return response.json(); // ждём { claim_id, pdf_url, mid }
 }
+// Отправка PDF в чат. Позже — по ответу бэкендера (вопрос №3):
+// либо эндпоинт бота, либо shareMaxContent({ mid }).
+export async function sendClaimToChat(pdf) {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 600));
+    return { ok: true };
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/v1/claims/${pdf.claim_id}/send`,
+    { method: "POST" }
+  );
+  if (!response.ok) throw new Error(`Ошибка отправки: ${response.status}`);
+  return response.json();
+}
