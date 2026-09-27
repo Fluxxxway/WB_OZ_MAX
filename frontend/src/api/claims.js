@@ -10,6 +10,9 @@ export async function generateClaim(payload) {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 900)); // имитация сети
     if (SIMULATE_ERROR) throw new Error("MOCK: сервер недоступен");
+
+    console.log("MOCK GENERATE payload:", payload);
+
     return {
       claim_id: "mock-123",
       pdf_url: "https://example.com/claims/mock-123.pdf",

@@ -1,3 +1,4 @@
+import { PLATFORM } from "../../config/platform";
 import { useEffect } from "react";
 import { PENALTY_OPTIONS } from "./ClaimForm";
 import { showBackButton, hideBackButton } from "../../max/bridge";
@@ -61,8 +62,7 @@ export default function DocumentView({ claim, status, onEdit, onGenerate }) {
         {/* ЗАГЛУШКА: позже текст пункта оферты приезжает из каталога бэкенда
             (вопрос №4 в сообщении бэкендеру) */}
         <p>
-          <b>Правовое основание:</b> п. 12.4 Регламента оферты WB — порядок
-          применения удержаний и процедура их оспаривания.
+          <b>Правовое основание:</b> {PLATFORM.offerClause}
         </p>
 
         <p>

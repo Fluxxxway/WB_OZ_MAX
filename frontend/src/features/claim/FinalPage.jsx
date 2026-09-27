@@ -1,3 +1,4 @@
+import { PLATFORM } from "../../config/platform";
 import { useState } from "react";
 import { openExternal } from "../../max/bridge";
 import { sendClaimToChat } from "../../api/claims";
@@ -74,8 +75,7 @@ export default function FinalPage({ pdf }) {
           lineHeight: 1.5,
         }}
       >
-        <b>Что делать дальше:</b> сохрани полученный файл и прикрепи его к обращению
-        в личном кабинете WB: «Финансы» → «Удержания» → «Оспаривание».
+        <b>Что делать дальше:</b> сохрани полученный файл и прикрепи его к обращению — {PLATFORM.appealPath}
       </div>
     </div>
   );

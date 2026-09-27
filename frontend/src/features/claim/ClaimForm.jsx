@@ -1,14 +1,13 @@
 import { useMemo, useState } from "react";
+import { PLATFORM } from "../../config/platform";
 
 const initialForm = {
-  platform: "Wildberries",
   penalty_type: "",
   amount: "",
   violation_date: "",
   description: "",
   act_number: "",
   warehouse_name: "",
-  sku_id: "",
 };
 
 export const PENALTY_OPTIONS = [
@@ -19,10 +18,8 @@ export const PENALTY_OPTIONS = [
 ];
 
 function buildPayload(form, userId, photoUrls) {
-  const isWB = form.platform === "Wildberries";
-
   return {
-    platform: form.platform,
+    platform: PLATFORM.id,
     penalty_type: form.penalty_type,
     user_id: userId,
     amount: Number(form.amount),
@@ -30,34 +27,32 @@ function buildPayload(form, userId, photoUrls) {
     photos: photoUrls,
     act_number: form.act_number.trim() !== "" ? form.act_number : null,
     warehouse_name:
-      isWB && form.warehouse_name.trim() !== "" ? form.warehouse_name : null,
-    sku_id: !isWB && form.sku_id.trim() !== "" ? form.sku_id : null,
+      form.warehouse_name.trim() !== "" ? form.warehouse_name : null,
+    sku_id: null, // WB-only: для Ozon поле оживёт в следующей версии
   };
 }
 
 function calcClaimScore(form, photoUrls) {
-  const isWB = form.platform === "Wildberries";
-
   const checks = [
     form.penalty_type !== "",
     Number(form.amount) > 0,
     form.violation_date !== "",
     photoUrls.length > 0,
-    isWB ? form.warehouse_name.trim() !== "" : form.sku_id.trim() !== "",
+    form.warehouse_name.trim() !== "",
   ];
 
   const done = checks.filter(Boolean).length;
   return Math.round((done / checks.length) * 100);
 }
 
-// ЗАГЛУШКА: срок оспаривания уточнить у команды/юриста,
-// сейчас считаем 30 дней от даты начисления.
 function getDeadlineText(violationDate) {
   if (!violationDate) {
     return "Срок подачи возражения ограничен — не откладывай.";
   }
   const start = new Date(violationDate);
-  const deadline = new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const deadline = new Date(
+    start.getTime() + PLATFORM.deadlineDays * 24 * 60 * 60 * 1000
+  );
   const daysLeft = Math.ceil((deadline - Date.now()) / (1000 * 60 * 60 * 24));
   if (daysLeft < 0) return "Срок мог истечь — проверь даты в личном кабинете.";
   if (daysLeft === 0) return "До конца подачи возражения меньше суток!";
@@ -72,20 +67,18 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
   const [showPhotoHelp, setShowPhotoHelp] = useState(false);
 
   const score = useMemo(() => calcClaimScore(form, photoUrls), [form, photoUrls]);
-  const isWB = form.platform === "Wildberries";
   const today = new Date().toISOString().slice(0, 10);
 
   const handleChange = (e) => {
-  const { name, value } = e.target;
+    const { name, value } = e.target;
 
-  if (name === "amount") {
-    // оставляем только цифры, всё остальное просто не появляется
-    const digits = value.replace(/\D/g, "");
-    setForm((prev) => ({ ...prev, amount: digits }));
-    return;
-  }
+    if (name === "amount") {
+      const digits = value.replace(/\D/g, "");
+      setForm((prev) => ({ ...prev, amount: digits }));
+      return;
+    }
 
-  setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFiles = (e) => {
@@ -119,19 +112,20 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
         <progress value={score} max={100} style={{ width: "100%" }} />
       </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <label>
-          Платформа
-          <select
-            name="platform"
-            value={form.platform}
-            onChange={handleChange}
-            style={{ width: "100%" }}
-          >
-            <option value="Wildberries">Wildberries</option>
-            <option value="Ozon">Ozon</option>
-          </select>
-        </label>
+      {/* Платформа теперь фиксированная */}
+      <div
+        style={{
+          marginBottom: 12,
+          padding: 10,
+          borderRadius: 8,
+          background: "#eceff1",
+          fontSize: 14,
+        }}
+      >
+        Маркетплейс: <b>{PLATFORM.label}</b>{" "}
+        <span style={{ color: "#999", fontSize: 12 }}>
+          (Ozon — в следующей версии)
+        </span>
       </div>
 
       <div style={{ marginBottom: 12 }}>
@@ -163,6 +157,7 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
             value={form.amount}
             onChange={handleChange}
             placeholder="15000"
+            maxLength={9}
             style={{ width: "100%" }}
           />
         </label>
@@ -187,37 +182,20 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
         </label>
       </div>
 
-      {isWB && (
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            Склад (обязательно для WB)
-            <input
-              type="text"
-              name="warehouse_name"
-              value={form.warehouse_name}
-              onChange={handleChange}
-              placeholder="Коледино"
-              style={{ width: "100%" }}
-            />
-          </label>
-        </div>
-      )}
-
-      {!isWB && (
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            SKU (обязательно для Ozon)
-            <input
-              type="text"
-              name="sku_id"
-              value={form.sku_id}
-              onChange={handleChange}
-              placeholder="123456789"
-              style={{ width: "100%" }}
-            />
-          </label>
-        </div>
-      )}
+      {/* Склад обязателен всегда (WB) */}
+      <div style={{ marginBottom: 12 }}>
+        <label>
+          Склад отгрузки
+          <input
+            type="text"
+            name="warehouse_name"
+            value={form.warehouse_name}
+            onChange={handleChange}
+            placeholder="Коледино"
+            style={{ width: "100%" }}
+          />
+        </label>
+      </div>
 
       <div style={{ marginBottom: 12 }}>
         <label>
@@ -248,6 +226,19 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
         <div style={{ fontSize: 12, color: "#888" }}>
           {form.description.trim().length} / минимум 20 символов
         </div>
+      </div>
+
+      <div
+        style={{
+          marginBottom: 12,
+          padding: 10,
+          borderRadius: 8,
+          background: "#fff3e0",
+          color: "#e65100",
+          fontSize: 13,
+        }}
+      >
+        ⏳ {getDeadlineText(form.violation_date)}
       </div>
 
       <div style={{ marginBottom: 12 }}>
@@ -289,23 +280,17 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
           </div>
         )}
       </div>
-      
-      <div
-        style={{
-          marginBottom: 12,
-          padding: 10,
-          borderRadius: 8,
-          background: "#fff3e0",
-          color: "#e65100",
-          fontSize: 13,
-        }}
-      >
-        ⏳ {getDeadlineText(form.violation_date)}
-      </div>
 
       <button
         onClick={handleSubmit}
-        style={{ padding: "12px 16px", width: "100%", borderRadius: 8, border: "none", background: "#2e7d32", color: "#fff" }}
+        style={{
+          padding: "12px 16px",
+          width: "100%",
+          borderRadius: 8,
+          border: "none",
+          background: "#2e7d32",
+          color: "#fff",
+        }}
       >
         Предпросмотр апелляции
       </button>
@@ -315,6 +300,7 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
           Заполни обязательные поля и добавь хотя бы одно фото.
         </p>
       )}
+
       {showPhotoHelp && (
         <div
           style={{
