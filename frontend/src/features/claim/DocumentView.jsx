@@ -1,8 +1,14 @@
+import { useEffect } from "react";
 import { PENALTY_OPTIONS } from "./ClaimForm";
+import { showBackButton, hideBackButton } from "../../max/bridge";
 
 export default function DocumentView({ claim, status, onEdit, onGenerate }) {
   const { form, photoUrls, userName } = claim;
-
+  useEffect(() => {
+  const onBack = () => onEdit();
+  showBackButton(onBack);
+  return () => hideBackButton(onBack);
+  }, []);
   const penaltyLabel =
     (PENALTY_OPTIONS.find((o) => o.value === form.penalty_type) || {}).label ||
     form.penalty_type;

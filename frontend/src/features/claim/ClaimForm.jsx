@@ -50,11 +50,26 @@ function calcClaimScore(form, photoUrls) {
   return Math.round((done / checks.length) * 100);
 }
 
+// ЗАГЛУШКА: срок оспаривания уточнить у команды/юриста,
+// сейчас считаем 30 дней от даты начисления.
+function getDeadlineText(violationDate) {
+  if (!violationDate) {
+    return "Срок подачи возражения ограничен — не откладывай.";
+  }
+  const start = new Date(violationDate);
+  const deadline = new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const daysLeft = Math.ceil((deadline - Date.now()) / (1000 * 60 * 60 * 24));
+  if (daysLeft < 0) return "Срок мог истечь — проверь даты в личном кабинете.";
+  if (daysLeft === 0) return "До конца подачи возражения меньше суток!";
+  return `До истечения срока подачи возражения: ${daysLeft} дн.`;
+}
+
 export default function ClaimForm({ initial = null, user, onPreview }) {
   const [form, setForm] = useState(initial ? initial.form : initialForm);
   const [photos, setPhotos] = useState(initial ? initial.photos : []);
   const [photoUrls, setPhotoUrls] = useState(initial ? initial.photoUrls : []);
   const [showHint, setShowHint] = useState(false);
+  const [showPhotoHelp, setShowPhotoHelp] = useState(false);
 
   const score = useMemo(() => calcClaimScore(form, photoUrls), [form, photoUrls]);
   const isWB = form.platform === "Wildberries";
@@ -236,16 +251,31 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <label>
-          Фото-доказательства
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
-            onChange={handleFiles}
-          />
-        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <span>Фото-доказательства</span>
+          <button
+            type="button"
+            onClick={() => setShowPhotoHelp(true)}
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              border: "1px solid #999",
+              background: "#fff",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            i
+          </button>
+        </div>
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          onChange={handleFiles}
+        />
         {photos.length > 0 && (
           <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
             {photos.map((file, i) => (
@@ -259,6 +289,19 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
           </div>
         )}
       </div>
+      
+      <div
+        style={{
+          marginBottom: 12,
+          padding: 10,
+          borderRadius: 8,
+          background: "#fff3e0",
+          color: "#e65100",
+          fontSize: 13,
+        }}
+      >
+        ⏳ {getDeadlineText(form.violation_date)}
+      </div>
 
       <button
         onClick={handleSubmit}
@@ -271,6 +314,53 @@ export default function ClaimForm({ initial = null, user, onPreview }) {
         <p style={{ color: "orange" }}>
           Заполни обязательные поля и добавь хотя бы одно фото.
         </p>
+      )}
+      {showPhotoHelp && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 10,
+          }}
+          onClick={() => setShowPhotoHelp(false)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: 20,
+              maxWidth: 320,
+              lineHeight: 1.5,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0 }}>Что сфотографировать</h3>
+            <ol style={{ paddingLeft: 18, margin: 0 }}>
+              <li>Товар на линии / измерительной ленте</li>
+              <li>Чекпинт наклейка со штрихкодом (BarCode / SKU)</li>
+              <li>Упакованное место на весах</li>
+            </ol>
+            <button
+              onClick={() => setShowPhotoHelp(false)}
+              style={{
+                marginTop: 16,
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "none",
+                background: "#2e7d32",
+                color: "#fff",
+              }}
+            >
+              Понятно
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
