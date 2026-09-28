@@ -1,0 +1,20 @@
+#Python-generated files
+__pycache__/
+*.py[cod]
+build/
+wheels/
+*.egg-info
+
+#Secrets
+.env
+
+#Project files
+venv/
+.venv/
+.vscode/
+
+#Node / Webapp
+node_modules/
+webapp/nod_modules/
+webapp/dist/
+*.log
